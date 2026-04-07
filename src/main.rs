@@ -1,5 +1,6 @@
 use std::{
-    collections::{HashMap, hash_map}, io::{BufRead, Read, Seek}
+    collections::{HashMap, hash_map},
+    io::{BufRead, Read, Seek},
 };
 
 const HEAD1: u8 = 0xA3;
@@ -112,10 +113,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // }
 
     let mut head = [0u8; 3];
-    // let mut msg_formats = HashMap::new();
-    let mut i = 0;
     let mut msg_formats = HashMap::new();
     let mut messages = HashMap::new();
+
+    let mut msg_id_param: Option<u8> = None;
+    let mut msg_id_unit: Option<u8> = None;
+    let mut msg_id_format_unit: Option<u8> = None;
+    let mut msg_id_mult: Option<u8> = None;
+
     while reader.read_exact(&mut head).is_ok() {
         let [head1, head2, msg_id] = head;
         if head1 != HEAD1 || head2 != HEAD2 {
@@ -158,13 +163,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .unwrap()
                         .trim_end_matches('\0')
                         .to_string();
+                    let name = std::str::from_utf8(name)
+                        .unwrap()
+                        .trim_end_matches('\0')
+                        .to_string();
+                    match name.as_str() {
+                        "PARM" => {
+                            msg_id_param = Some(msg_id_fmt);
+                        }
+                        "UNIT" => {
+                            msg_id_unit = Some(msg_id_fmt);
+                        }
+                        "FMTU" => {
+                            msg_id_format_unit = Some(msg_id_fmt);
+                        }
+                        "MULT" => {
+                            msg_id_mult = Some(msg_id_fmt);
+                        }
+                        _ => {}
+                    }
                     fmt_entry.insert(MessageFormat {
                         id: msg_id_fmt,
                         length: msg_len,
-                        name: std::str::from_utf8(name)
-                            .unwrap()
-                            .trim_end_matches('\0')
-                            .to_string(),
+                        name,
                         format: std::str::from_utf8(format)
                             .unwrap()
                             .trim_end_matches('\0')
@@ -305,7 +326,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             break;
                         }
                         FormatType::Uint32Mul100(u32::from_be_bytes(buf))
-                    } 
+                    }
                     'L' => {
                         let mut buf = [0u8; 4];
                         if reader.read_exact(&mut buf).is_err() {
@@ -369,13 +390,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // }
     }
 
+    println!("{:#?}", msg_id_param);
+    println!("{:#?}", msg_id_unit);
+    println!("{:#?}", msg_id_format_unit);
+    println!("{:#?}", msg_id_mult);
+
     // println!("{:#?}", msg_formats);
-    for (msg_id, fields) in messages {
-        if fields.is_empty() {
-            println!("Msg {msg_id} not available");
-        } else {
-            println!("Msg {msg_id} available");
-        }
-    }
+    // for (msg_id, fields) in &messages {
+    //     if fields.is_empty() {
+    //         println!("Msg {msg_id} not available");
+    //     } else {
+    //         println!("Msg {msg_id} available");
+    //     }
+    // }
+
+    // for fields in messages.get(&MSG_ID_PARAM).unwrap() {
+    //     // println!("Field: {:#?}", fields);
+    //     for field in fields {
+    //         if let FormatType::CharLen16(name) = field {
+    //             println!(
+    //                 "Param name: {}",
+    //                 std::str::from_utf8(name.as_ref()).unwrap()
+    //             );
+    //         }
+    //     }
+    // }
+
     Ok(())
 }
