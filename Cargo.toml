@@ -4,3 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+iced = "0.14"
+iced_plot = { git = "https://github.com/donkeyteethUX/iced_plot.git", rev = "082a279903a4b21949f8384ff255028e793f7d00" }
