@@ -43,7 +43,7 @@ fn read_log() {
         let [head1, head2, msg_id] = head;
         if head1 != HEAD1 || head2 != HEAD2 {
             // println!("Bad header: {:02X} {:02X}", head1, head2);
-            reader.seek_relative(-2).unwrap();
+            reader.seek_relative(-(head.len() - 1) as i64).unwrap();
             continue;
         }
 
