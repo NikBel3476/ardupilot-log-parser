@@ -119,14 +119,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //     }
     // }
 
-    // let new = move || {
-    //     let positions = (0..100)
-    //         .map(|i| {
-    //             let x = i as f64 * 0.1;
-    //             let y = (x * 0.5).sin();
-    //             [x, y]
-    //         })
-    //         .collect();
+    let mut head = [0u8; 3];
+    // let mut msg_formats = HashMap::new();
+    let mut i = 0;
+    let mut msg_formats = HashMap::new();
+    let mut messages = HashMap::new();
+    while reader.read_exact(&mut head).is_ok() {
+        let [head1, head2, msg_id] = head;
+        if head1 != HEAD1 || head2 != HEAD2 {
+            // println!("Bad header: {:02X} {:02X}", head1, head2);
+            reader.seek_relative((head.len() - 1) as i64).unwrap();
+            continue;
+        }
 
     //     let s1 = Series::line_only(positions, LineStyle::solid().with_pixel_width(4.0))
     //         .with_label("sine_line_only")

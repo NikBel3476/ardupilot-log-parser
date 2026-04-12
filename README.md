@@ -1,6 +1,6 @@
 ## WIP
 
-**AI Generated Ardupilot dataflash logs desctiption (don't trust too much)**
+**AI Generated Ardupilot dataflash logs description (don't trust too much)**
 
 Структура Dataflash логов ArduPilot
 
