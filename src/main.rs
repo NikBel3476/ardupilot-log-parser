@@ -1,6 +1,6 @@
 use iced::{
     Element, Task,
-    widget::{button, column},
+    widget::{button, column, Button},
 };
 use iced_plot::{
     Color, HoverPickEvent, LineStyle, MarkerStyle, PlotUiMessage, PlotWidget, PlotWidgetBuilder,
@@ -8,82 +8,13 @@ use iced_plot::{
 };
 use std::{
     collections::{HashMap, hash_map},
-    io::{BufRead, Read, Seek},
+    io::{BufRead, Read, Seek}, rc::Rc,
 };
 
-const HEAD1: u8 = 0xA3;
-const HEAD2: u8 = 0x95;
-const MSG_ID_FMT: u8 = 0x80;
-const MSG_ID_PARAM: u8 = 0x20;
-
-#[derive(Debug)]
-enum FormatType {
-    /// a
-    Int16Len32(Box<Vec<i16>>),
-    /// b
-    Int8(i8),
-    /// B
-    Uint8(u8),
-    /// h
-    Int16(i16),
-    /// H
-    Uint16(u16),
-    /// i
-    Int32(i32),
-    /// I
-    Uint32(u32),
-    /// f
-    Float(f32),
-    /// d
-    Double(f64),
-    /// n
-    CharLen4(Box<[u8; 4]>),
-    /// N
-    CharLen16(Box<[u8; 16]>),
-    /// Z
-    CharLen64(Box<[u8; 64]>),
-    /// **Legacy** c : int16_t * 100
-    Int16Mul100(i16),
-    /// **Legacy** C : uint16_t * 100
-    Uint16Mul100(u16),
-    /// **Legacy** e : int32_t * 100
-    Int32Mul100(i32),
-    /// **Legacy** E : uint32_t * 100
-    Uint32Mul100(u32),
-    /// L
-    Int32LatLon(i32),
-    /// M
-    Uint8FlightMode(u8),
-    /// q
-    Int64(i64),
-    /// Q
-    Uint64(u64),
-}
-
-enum ReadState {
-    AwaitHead,
-    AwaitAttribute,
-    ParseMessage,
-}
-
-#[derive(Debug)]
-struct MessageFormat {
-    id: u8,
-    length: u8,
-    name: String,
-    format: Vec<char>,
-    labels: Vec<String>,
-}
-
-// FMT msg
-// Type: '128',
-// length: '89',
-// Name: 'FMT',
-// Format: 'BBnNZ',
-// Columns: ['Type', 'Length', 'Name' , 'Format', 'Columns']
+mod log_reader;
 
 struct ArdupilotLogParserApp {
-    // messages: HashMap<u8, Vec<Vec<FormatType>>>,
+    messages: Option<HashMap<u8, Vec<Vec<log_reader::FormatType>>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -93,10 +24,14 @@ enum Message {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = std::env::args().collect::<Vec<String>>();
-    if args.len() < 2 {
-        panic!("Please specify filename argument");
+    let mut messages = Rc::new(None);
+    if args.len() > 2 {
+        // panic!("Please specify filename argument");
+        let log_file_path = &args[1];
+        if let Ok(msgs) = log_reader::read_log(&std::path::Path::new(log_file_path)) {
+            messages = Rc::new(Some(msgs));
+        }
     }
-    let log_file_path = &args[1];
 
     // println!("{:#?}", msg_formats);
     // for (msg_id, fields) in &messages {
@@ -206,31 +141,54 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ArdupilotLogParserApp::update,
         ArdupilotLogParserApp::view,
     )
-    .run()
-    .unwrap();
+    .run()?;
 
     Ok(())
 }
 
 impl ArdupilotLogParserApp {
-    fn new() -> (Self, Task<Message>) {
-        (Self {}, Task::none())
+    fn new(/*messages: Option<Box<HashMap<u8, Vec<Vec<log_reader::FormatType>>>>>*/) -> (Self, Task<Message>) {
+        (Self { messages: None }, Task::none())
     }
 
     fn update(&mut self, message: Message) {
         match message {
             Message::OpenFileDialog => {
                 let choosen_file = rfd::FileDialog::new()
-                    .add_filter("bin", &["bin, BIN"])
+                    .add_filter("bin", &["bin", "BIN"])
                     .pick_file();
-                if let Some(file) = choosen_file {}
+                if let Some(file) = choosen_file {
+                    match log_reader::read_log(&file) {
+                        Ok(msgs) => {
+                            self.messages = Some(msgs);
+                        }
+                        Err(err_msg) => {
+                            eprintln!("{err_msg}");
+                        }
+                    }
+                }
             }
         }
     }
 
     fn view(&'_ self) -> Element<'_, Message> {
-        column![button("Choose file").on_press(Message::OpenFileDialog)]
-            .padding(20)
-            .into()
+        let mut column = ;
+        if let Some(msgs) = &self.messages {
+            column.extend(
+            msgs.iter().map(|(msg_id, fmt_messages)| {
+                button("a" /*msg_id.to_string().as_str()*/).on_press(Message::OpenFileDialog)
+            }).map(Element::from));
+        }
+
+        column![
+            button("Choose file").on_press(Message::OpenFileDialog),
+            column(
+                self.messages.and_then(|msgs| {
+                    msgs.iter().map(|(msg_id, fmt_messages)| {
+                        button(msg_id.to_string().as_str()).on_press(Message::OpenFileDialog)
+                    })
+                })
+            )
+        ].padding(20).into()
     }
 }

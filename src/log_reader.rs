@@ -1,6 +1,81 @@
-fn read_log() {
-    let log_file = std::fs::File::open(log_file_path)
-        .unwrap_or_else(|_| panic!("Cannot open file {log_file_path}"));
+use std::{
+    collections::{HashMap, hash_map}, io::Read, path::Path
+};
+
+const HEAD1: u8 = 0xA3;
+const HEAD2: u8 = 0x95;
+const MSG_ID_FMT: u8 = 0x80;
+const MSG_ID_PARAM: u8 = 0x20;
+
+#[derive(Debug)]
+pub enum FormatType {
+    /// a
+    Int16Len32(Box<Vec<i16>>),
+    /// b
+    Int8(i8),
+    /// B
+    Uint8(u8),
+    /// h
+    Int16(i16),
+    /// H
+    Uint16(u16),
+    /// i
+    Int32(i32),
+    /// I
+    Uint32(u32),
+    /// f
+    Float(f32),
+    /// d
+    Double(f64),
+    /// n
+    CharLen4(Box<[u8; 4]>),
+    /// N
+    CharLen16(Box<[u8; 16]>),
+    /// Z
+    CharLen64(Box<[u8; 64]>),
+    /// **Legacy** c : int16_t * 100
+    Int16Mul100(i16),
+    /// **Legacy** C : uint16_t * 100
+    Uint16Mul100(u16),
+    /// **Legacy** e : int32_t * 100
+    Int32Mul100(i32),
+    /// **Legacy** E : uint32_t * 100
+    Uint32Mul100(u32),
+    /// L
+    Int32LatLon(i32),
+    /// M
+    Uint8FlightMode(u8),
+    /// q
+    Int64(i64),
+    /// Q
+    Uint64(u64),
+}
+
+enum ReadState {
+    AwaitHead,
+    AwaitAttribute,
+    ParseMessage,
+}
+
+#[derive(Debug)]
+struct MessageFormat {
+    id: u8,
+    length: u8,
+    name: String,
+    format: Vec<char>,
+    labels: Vec<String>,
+}
+
+// FMT msg
+// Type: '128',
+// length: '89',
+// Name: 'FMT',
+// Format: 'BBnNZ',
+// Columns: ['Type', 'Length', 'Name' , 'Format', 'Columns']
+
+pub fn read_log(log_file_path: &Path) -> Result<HashMap<u8, Vec<Vec<FormatType>>>, std::io::Error> {
+    let log_file = std::fs::File::open(log_file_path)?;
+        // .unwrap_or_else(|_| panic!("Cannot open file {}", log_file_path.to_str().unwrap()));
     let mut reader = std::io::BufReader::new(log_file);
 
     // let mut buf = vec![];
@@ -43,7 +118,7 @@ fn read_log() {
         let [head1, head2, msg_id] = head;
         if head1 != HEAD1 || head2 != HEAD2 {
             // println!("Bad header: {:02X} {:02X}", head1, head2);
-            reader.seek_relative(-(head.len() - 1) as i64).unwrap();
+            reader.seek_relative(-(head.len() as i64 - 1)).unwrap();
             continue;
         }
 
@@ -314,4 +389,6 @@ fn read_log() {
     println!("{:#?}", msg_id_mult);
 
     // println!("{:#?}", messages.get(&34).unwrap());
+
+    Ok(messages)
 }
