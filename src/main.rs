@@ -6,16 +6,20 @@ use iced_plot::{
     Color, HoverPickEvent, LineStyle, MarkerStyle, PlotUiMessage, PlotWidget, PlotWidgetBuilder,
     Series,
 };
+use rand::prelude::*;
 use std::{
     collections::{HashMap, hash_map},
-    io::{BufRead, Read, Seek},
+    io::{BufRead, Read, Seek, Write},
     rc::Rc,
 };
+
+use crate::log_reader::MessageFormat;
 
 mod log_reader;
 
 struct ArdupilotLogParserApp {
     messages: Option<HashMap<u8, Vec<Vec<log_reader::FormatType>>>>,
+    message_formats: Option<HashMap<u8, MessageFormat>>,
     plot_widget: PlotWidget,
 }
 
@@ -153,39 +157,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 impl ArdupilotLogParserApp {
     fn new(/*messages: Option<Box<HashMap<u8, Vec<Vec<log_reader::FormatType>>>>>*/)
      -> (Self, Task<Message>) {
-        let positions = (0..100)
-            .map(|i| {
-                let x = i as f64 * 0.1;
-                let y = (x * 0.5).sin();
-                [x, y]
-            })
-            .collect();
+        // let positions = (0..100)
+        //     .map(|i| {
+        //         let x = i as f64 * 0.1;
+        //         let y = (x * 0.5).sin();
+        //         [x, y]
+        //     })
+        //     .collect();
 
-        let s1 = Series::line_only(positions, LineStyle::solid().with_pixel_width(4.0))
-            .with_label("sine_line_only")
-            .with_color(Color::from_rgb(0.3, 0.3, 0.9));
+        // let s1 = Series::line_only(positions, LineStyle::solid().with_pixel_width(4.0))
+        //     .with_label("sine_line_only")
+        //     .with_color(Color::from_rgb(0.3, 0.3, 0.9));
 
-        let positions = (0..50)
-            .map(|i| {
-                let x = i as f64 * 0.2;
-                let y = (x * 0.3).cos() + 0.5;
-                [x, y]
-            })
-            .collect();
-        let s2 = Series::markers_only(positions, MarkerStyle::circle(6.0))
-            .with_label("cosine_markers_only")
-            .with_color(Color::from_rgb(0.9, 0.3, 0.3));
+        // let positions = (0..50)
+        //     .map(|i| {
+        //         let x = i as f64 * 0.2;
+        //         let y = (x * 0.3).cos() + 0.5;
+        //         [x, y]
+        //     })
+        //     .collect();
+        // let s2 = Series::markers_only(positions, MarkerStyle::circle(6.0))
+        //     .with_label("cosine_markers_only")
+        //     .with_color(Color::from_rgb(0.9, 0.3, 0.3));
 
-        let positions = (0..30)
-            .map(|i| {
-                let x = i as f64 * 0.3;
-                let y = (x * 0.8).sin() - 0.5;
-                [x, y]
-            })
-            .collect();
-        let s3 = Series::new(positions, MarkerStyle::square(4.0), LineStyle::dashed(10.0))
-            .with_label("both_markers_and_lines")
-            .with_color(Color::from_rgb(0.3, 0.9, 0.3));
+        // let positions = (0..30)
+        //     .map(|i| {
+        //         let x = i as f64 * 0.3;
+        //         let y = (x * 0.8).sin() - 0.5;
+        //         [x, y]
+        //     })
+        //     .collect();
+        // let s3 = Series::new(positions, MarkerStyle::square(4.0), LineStyle::dashed(10.0))
+        //     .with_label("both_markers_and_lines")
+        //     .with_color(Color::from_rgb(0.3, 0.9, 0.3));
 
         let plot_widget = PlotWidgetBuilder::new()
             .with_hover_highlight_provider(|context, point| {
@@ -210,9 +214,9 @@ impl ArdupilotLogParserApp {
                     ctx.point_index, point.x, point.y
                 ))
             })
-            .add_series(s1)
-            .add_series(s2)
-            .add_series(s3)
+            // .add_series(s1)
+            // .add_series(s2)
+            // .add_series(s3)
             .with_cursor_overlay(true)
             .with_cursor_provider(|x, y| format!("Your cursor is at: X: {x:.2}, Y: {y:.2}"))
             .with_y_label("Y Axis (Custom Font Size)")
@@ -227,6 +231,7 @@ impl ArdupilotLogParserApp {
         (
             Self {
                 messages: None,
+                message_formats: None,
                 plot_widget,
             },
             Task::none(),
@@ -241,8 +246,14 @@ impl ArdupilotLogParserApp {
                     .pick_file();
                 if let Some(file) = choosen_file {
                     match log_reader::read_log(&file) {
-                        Ok(msgs) => {
+                        Ok((msgs, msg_formats)) => {
+                            println!("{:#?}", msgs[&104]);
+                            println!("{:#?}", msg_formats[&104]);
                             self.messages = Some(msgs);
+                            self.message_formats = Some(msg_formats);
+                            // let json = serde_json::to_string(&msgs).unwrap();
+                            // let mut json_file = std::fs::File::create("out.json").unwrap();
+                            // json_file.write_all(json.as_bytes());
                         }
                         Err(err_msg) => {
                             eprintln!("{err_msg}");
@@ -251,24 +262,38 @@ impl ArdupilotLogParserApp {
                 }
             }
             Message::ShowMsgPlot(msg_id) => {
-                if let Some(msgs) = &self.messages {
-                    let m = &msgs[&msg_id];
-                    let series = Series::line_only(
-                        m.iter()
-                            .enumerate()
-                            .map(|(i, fields)| {
-                                let num = match fields[0] {
-                                    log_reader::FormatType::Uint8(n) => n,
-                                    _ => 0,
-                                };
-                                [i as f64, f64::from(num)]
-                            })
-                            .collect(),
-                        LineStyle::solid().with_pixel_width(4.0),
-                    )
-                    .with_label("sine_line_only")
-                    .with_color(Color::from_rgb(0.3, 0.3, 0.9));
-                    self.plot_widget.add_series(series).unwrap();
+                if let (Some(msgs), Some(msg_formats)) = (&self.messages, &self.message_formats) {
+                    let msg_format = msg_formats.get(&msg_id).unwrap();
+                    let msg_values = msgs.get(&msg_id).unwrap();
+
+                    self.plot_widget
+                        .series_ids()
+                        .iter()
+                        .for_each(|shape_id| self.plot_widget.remove_series(shape_id).unwrap());
+                    for (field_index, field_name) in msg_format.labels.iter().enumerate() {
+                        let r = rand::random_range(0.0..1.0);
+                        let g = rand::random_range(0.0..1.0);
+                        let b = rand::random_range(0.0..1.0);
+
+                        let series = Series::line_only(
+                            msg_values
+                                .iter()
+                                .enumerate()
+                                .map(|(i, fields)| {
+                                    [i as f64, fields[field_index].to_f64().unwrap_or(0.0)]
+                                })
+                                .collect(),
+                            LineStyle::solid().with_pixel_width(4.0),
+                        )
+                        .with_label(format!("{} {}", msg_format.name, field_name))
+                        .with_color(Color::from_rgb(r, g, b));
+                        match self.plot_widget.add_series(series) {
+                            Ok(_) => {}
+                            Err(_) => {
+                                eprintln!("Empty");
+                            }
+                        }
+                    }
                 }
             }
             Message::PlotMessage(plot_msg) => {
@@ -278,11 +303,13 @@ impl ArdupilotLogParserApp {
     }
 
     fn view(&'_ self) -> Element<'_, Message> {
-        let mut column = match &self.messages {
-            Some(msgs) => column(
-                msgs.iter()
-                    .map(|(msg_id, fmt_messages)| {
-                        button(text(msg_id)).on_press(Message::ShowMsgPlot(*msg_id))
+        let column = match &self.message_formats {
+            Some(msg_formats) => column(
+                msg_formats
+                    .iter()
+                    .map(|(msg_id, msg_format)| {
+                        button(text(msg_format.name.as_str()))
+                            .on_press(Message::ShowMsgPlot(*msg_id))
                     })
                     .map(Element::from),
             ),

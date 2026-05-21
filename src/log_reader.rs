@@ -1,5 +1,9 @@
+use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, hash_map}, io::Read, path::Path
+    collections::{HashMap, hash_map},
+    io::Read,
+    option::Option,
+    path::Path,
 };
 
 const HEAD1: u8 = 0xA3;
@@ -51,6 +55,33 @@ pub enum FormatType {
     Uint64(u64),
 }
 
+impl FormatType {
+    pub fn to_f64(&self) -> Option<f64> {
+        match self {
+            FormatType::Uint8(n) => Some(*n as f64),
+            FormatType::Int16Len32(_) => None,
+            FormatType::Int8(n) => Some(*n as f64),
+            FormatType::Int16(n) => Some(*n as f64),
+            FormatType::Uint16(n) => Some(*n as f64),
+            FormatType::Int32(n) => Some(*n as f64),
+            FormatType::Uint32(n) => Some(*n as f64),
+            FormatType::Float(n) => Some(*n as f64),
+            FormatType::Double(n) => Some(*n as f64),
+            FormatType::CharLen4(_) => None,
+            FormatType::CharLen16(_) => None,
+            FormatType::CharLen64(_) => None,
+            FormatType::Int16Mul100(n) => Some(*n as f64),
+            FormatType::Uint16Mul100(n) => Some(*n as f64),
+            FormatType::Int32Mul100(n) => Some(*n as f64),
+            FormatType::Uint32Mul100(n) => Some(*n as f64),
+            FormatType::Int32LatLon(n) => Some(*n as f64),
+            FormatType::Uint8FlightMode(n) => Some(*n as f64),
+            FormatType::Int64(n) => Some(*n as f64),
+            FormatType::Uint64(n) => Some(*n as f64),
+        }
+    }
+}
+
 enum ReadState {
     AwaitHead,
     AwaitAttribute,
@@ -58,12 +89,12 @@ enum ReadState {
 }
 
 #[derive(Debug)]
-struct MessageFormat {
-    id: u8,
-    length: u8,
-    name: String,
-    format: Vec<char>,
-    labels: Vec<String>,
+pub struct MessageFormat {
+    pub length: u8,
+    pub id: u8,
+    pub name: String,
+    pub format: Vec<char>,
+    pub labels: Vec<String>,
 }
 
 // FMT msg
@@ -73,9 +104,17 @@ struct MessageFormat {
 // Format: 'BBnNZ',
 // Columns: ['Type', 'Length', 'Name' , 'Format', 'Columns']
 
-pub fn read_log(log_file_path: &Path) -> Result<HashMap<u8, Vec<Vec<FormatType>>>, std::io::Error> {
+pub fn read_log(
+    log_file_path: &Path,
+) -> Result<
+    (
+        HashMap<u8, Vec<Vec<FormatType>>>,
+        HashMap<u8, MessageFormat>,
+    ),
+    std::io::Error,
+> {
     let log_file = std::fs::File::open(log_file_path)?;
-        // .unwrap_or_else(|_| panic!("Cannot open file {}", log_file_path.to_str().unwrap()));
+    // .unwrap_or_else(|_| panic!("Cannot open file {}", log_file_path.to_str().unwrap()));
     let mut reader = std::io::BufReader::new(log_file);
 
     // let mut buf = vec![];
@@ -128,7 +167,7 @@ pub fn read_log(log_file_path: &Path) -> Result<HashMap<u8, Vec<Vec<FormatType>>
                 break;
             }
             let [msg_id_fmt, msg_len] = msg_header;
-            println!("Found fmt for {msg_id_fmt}");
+            // println!("Found fmt for {msg_id_fmt}");
             match msg_formats.entry(msg_id_fmt) {
                 hash_map::Entry::Vacant(fmt_entry) => {
                     // e.insert(msg_len);
@@ -390,5 +429,5 @@ pub fn read_log(log_file_path: &Path) -> Result<HashMap<u8, Vec<Vec<FormatType>>
 
     // println!("{:#?}", messages.get(&34).unwrap());
 
-    Ok(messages)
+    Ok((messages, msg_formats))
 }

@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
 iced = "0.14"
 iced_plot = { git = "https://github.com/donkeyteethUX/iced_plot.git", rev = "082a279903a4b21949f8384ff255028e793f7d00" }
 rfd = "0.17.2"
+rand = "0.10.1"
