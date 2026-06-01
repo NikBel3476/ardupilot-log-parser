@@ -1,6 +1,9 @@
 use iced::{
     Element, Length, Task,
-    widget::{Button, button, center_x, column, container, row, scrollable, text},
+    widget::{
+        Button, button, center, center_x, column, container, mouse_area, opaque, row, scrollable,
+        stack, text,
+    },
 };
 use iced_plot::{
     Color, HoverPickEvent, LineStyle, MarkerStyle, PlotUiMessage, PlotWidget, PlotWidgetBuilder,
@@ -17,10 +20,13 @@ use crate::log_reader::MessageFormat;
 
 mod log_reader;
 
+const MSGS_COLUMN_WIDTH_PX: f32 = 200.0;
+
 struct ArdupilotLogParserApp {
     messages: Option<HashMap<u8, Vec<Vec<log_reader::FormatType>>>>,
     message_formats: Option<HashMap<u8, MessageFormat>>,
     plot_widget: PlotWidget,
+    show_modal: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +34,7 @@ enum Message {
     OpenFileDialog,
     ShowMsgPlot(u8),
     PlotMessage(PlotUiMessage),
+    ShowModal(bool),
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -233,6 +240,7 @@ impl ArdupilotLogParserApp {
                 messages: None,
                 message_formats: None,
                 plot_widget,
+                show_modal: false,
             },
             Task::none(),
         )
@@ -299,34 +307,87 @@ impl ArdupilotLogParserApp {
             Message::PlotMessage(plot_msg) => {
                 self.plot_widget.update(plot_msg);
             }
+            Message::ShowModal(show) => {
+                self.show_modal = show;
+            }
         }
     }
 
     fn view(&'_ self) -> Element<'_, Message> {
         let column = match &self.message_formats {
-            Some(msg_formats) => column(
-                msg_formats
-                    .iter()
-                    .map(|(msg_id, msg_format)| {
-                        button(text(msg_format.name.as_str()))
-                            .on_press(Message::ShowMsgPlot(*msg_id))
-                    })
-                    .map(Element::from),
-            ),
+            Some(msg_formats) => {
+                let mut sorted_msg_formats =
+                    msg_formats.iter().collect::<Vec<(&u8, &MessageFormat)>>();
+                sorted_msg_formats.sort_by(|(_, msg_format1), (_, msg_format2)| {
+                    msg_format1.name.cmp(&msg_format2.name)
+                });
+                column(
+                    sorted_msg_formats
+                        .iter()
+                        .map(|(msg_id, msg_format)| {
+                            button(text(msg_format.name.as_str())).on_press(
+                                Message::ShowModal(true), /*Message::ShowMsgPlot(**msg_id)*/
+                            )
+                        })
+                        .map(Element::from),
+                )
+            }
             None => column![],
         };
 
-        row![
-            scrollable(center_x(
-                column![
-                    button("Choose file").on_press(Message::OpenFileDialog),
-                    column,
-                ]
-                .padding(20),
-            ))
-            .width(Length::Fixed(200.0)),
+        let signup = container(
+            column![
+                text("Sign Up").size(24),
+                column![button(text("Submit")),].spacing(10)
+            ]
+            .spacing(20),
+        )
+        .width(300)
+        .padding(10)
+        .style(container::rounded_box);
+
+        let content = row![
+            scrollable(center_x(column![
+                button("Choose file").on_press(Message::OpenFileDialog),
+                column,
+            ]))
+            .width(Length::Fixed(MSGS_COLUMN_WIDTH_PX)),
             container(self.plot_widget.view().map(Message::PlotMessage)).width(Length::Fill),
-        ]
-        .into()
+        ];
+
+        if self.show_modal {
+            modal(content, signup, Message::ShowModal(true))
+        } else {
+            content.into()
+        }
     }
+}
+
+fn modal<'a, Message>(
+    base: impl Into<Element<'a, Message>>,
+    content: impl Into<Element<'a, Message>>,
+    on_blur: Message,
+) -> Element<'a, Message>
+where
+    Message: Clone + 'a,
+{
+    stack![
+        base.into(),
+        opaque(
+            mouse_area(center(opaque(content)).style(|_theme| {
+                container::Style {
+                    background: Some(
+                        Color {
+                            a: 0.8,
+                            ..Color::BLACK
+                        }
+                        .into(),
+                    ),
+                    ..container::Style::default()
+                }
+            }))
+            .on_press(on_blur)
+        )
+    ]
+    .into()
 }
