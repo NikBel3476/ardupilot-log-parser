@@ -255,8 +255,6 @@ impl ArdupilotLogParserApp {
                 if let Some(file) = choosen_file {
                     match log_reader::read_log(&file) {
                         Ok((msgs, msg_formats)) => {
-                            println!("{:#?}", msgs[&104]);
-                            println!("{:#?}", msg_formats[&104]);
                             self.messages = Some(msgs);
                             self.message_formats = Some(msg_formats);
                             // let json = serde_json::to_string(&msgs).unwrap();
@@ -274,6 +272,12 @@ impl ArdupilotLogParserApp {
                     let msg_format = msg_formats.get(&msg_id).unwrap();
                     let msg_values = msgs.get(&msg_id).unwrap();
 
+                    println!("{:#?}", msg_format);
+                    println!("{:#?}", msg_values);
+
+                    let time_field_index =
+                        msg_format.labels.iter().position(|label| label == "TimeUS");
+
                     self.plot_widget
                         .series_ids()
                         .iter()
@@ -286,9 +290,11 @@ impl ArdupilotLogParserApp {
                         let series = Series::line_only(
                             msg_values
                                 .iter()
-                                .enumerate()
-                                .map(|(i, fields)| {
-                                    [i as f64, fields[field_index].to_f64().unwrap_or(0.0)]
+                                .map(|fields| {
+                                    [
+                                        time_field_index.unwrap_or(0) as f64,
+                                        fields[field_index].to_f64().unwrap_or(0.0),
+                                    ]
                                 })
                                 .collect(),
                             LineStyle::solid().with_pixel_width(4.0),
@@ -297,8 +303,8 @@ impl ArdupilotLogParserApp {
                         .with_color(Color::from_rgb(r, g, b));
                         match self.plot_widget.add_series(series) {
                             Ok(_) => {}
-                            Err(_) => {
-                                eprintln!("Empty");
+                            Err(msg) => {
+                                eprintln!("{:#?}", msg);
                             }
                         }
                     }
@@ -326,7 +332,8 @@ impl ArdupilotLogParserApp {
                         .iter()
                         .map(|(msg_id, msg_format)| {
                             button(text(msg_format.name.as_str())).on_press(
-                                Message::ShowModal(true), /*Message::ShowMsgPlot(**msg_id)*/
+                                /*Message::ShowModal(true),*/
+                                Message::ShowMsgPlot(**msg_id),
                             )
                         })
                         .map(Element::from),
@@ -356,7 +363,7 @@ impl ArdupilotLogParserApp {
         ];
 
         if self.show_modal {
-            modal(content, signup, Message::ShowModal(true))
+            modal(content, signup, Message::ShowModal(false))
         } else {
             content.into()
         }
