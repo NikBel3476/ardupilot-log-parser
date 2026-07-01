@@ -16,25 +16,35 @@ use std::{
     rc::Rc,
 };
 
-use crate::log_reader::MessageFormat;
+use crate::log_reader::{LogInfo, MessageFormat};
 
 mod log_reader;
+mod params_table;
 
 const MSGS_COLUMN_WIDTH_PX: f32 = 200.0;
 
+#[derive(Debug, Clone)]
+enum Widget {
+    Plot,
+    Table,
+}
+
 struct ArdupilotLogParserApp {
-    messages: Option<HashMap<u8, Vec<Vec<log_reader::FormatType>>>>,
-    message_formats: Option<HashMap<u8, MessageFormat>>,
+    log_info: LogInfo,
     plot_widget: PlotWidget,
+    table_widget: params_table::Table,
     show_modal: bool,
+    current_widget: Widget,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
     OpenFileDialog,
     ShowMsgPlot(u8),
-    PlotMessage(PlotUiMessage),
+    PlotMsg(PlotUiMessage),
+    TableMsg(params_table::Message),
     ShowModal(bool),
+    SwitchWidget(Widget),
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -235,12 +245,15 @@ impl ArdupilotLogParserApp {
             .build()
             .unwrap();
 
+        let table_widget = params_table::Table::new();
+
         (
             Self {
-                messages: None,
-                message_formats: None,
+                log_info: Default::default(),
                 plot_widget,
+                table_widget,
                 show_modal: false,
+                current_widget: Widget::Plot,
             },
             Task::none(),
         )
@@ -254,12 +267,14 @@ impl ArdupilotLogParserApp {
                     .pick_file();
                 if let Some(file) = choosen_file {
                     match log_reader::read_log(&file) {
-                        Ok((msgs, msg_formats)) => {
-                            self.messages = Some(msgs);
-                            self.message_formats = Some(msg_formats);
+                        Ok(log_info) => {
+                            self.log_info = log_info;
                             // let json = serde_json::to_string(&msgs).unwrap();
                             // let mut json_file = std::fs::File::create("out.json").unwrap();
                             // json_file.write_all(json.as_bytes());
+                            self.table_widget.update(params_table::Message::ShowParamsInfo(
+                                self.log_info.params.clone(),
+                            ));
                         }
                         Err(err_msg) => {
                             eprintln!("{err_msg}");
@@ -268,12 +283,11 @@ impl ArdupilotLogParserApp {
                 }
             }
             Message::ShowMsgPlot(msg_id) => {
-                if let (Some(msgs), Some(msg_formats)) = (&self.messages, &self.message_formats) {
-                    let msg_format = msg_formats.get(&msg_id).unwrap();
-                    let msg_values = msgs.get(&msg_id).unwrap();
-
-                    println!("{:#?}", msg_format);
-                    println!("{:#?}", msg_values);
+                let msg_format_maybe = self.log_info.formats.get(&msg_id);
+                let msg_values_maybe = self.log_info.msgs.get(&msg_id);
+                if let (Some(msg_format), Some(msg_values)) = (msg_format_maybe, msg_values_maybe) {
+                    // println!("{:#?}", msg_format);
+                    // println!("{:#?}", msg_values);
 
                     let time_field_index =
                         msg_format.labels.iter().position(|label| label == "TimeUS");
@@ -310,20 +324,25 @@ impl ArdupilotLogParserApp {
                     }
                 }
             }
-            Message::PlotMessage(plot_msg) => {
+            Message::PlotMsg(plot_msg) => {
                 self.plot_widget.update(plot_msg);
+            }
+            Message::TableMsg(table_msg) => {
+                self.table_widget.update(table_msg);
             }
             Message::ShowModal(show) => {
                 self.show_modal = show;
+            }
+            Message::SwitchWidget(widget) => {
+                self.current_widget = widget;
             }
         }
     }
 
     fn view(&'_ self) -> Element<'_, Message> {
-        let column = match &self.message_formats {
-            Some(msg_formats) => {
+        let column = {
                 let mut sorted_msg_formats =
-                    msg_formats.iter().collect::<Vec<(&u8, &MessageFormat)>>();
+                    self.log_info.formats.iter().collect::<Vec<(&u8, &MessageFormat)>>();
                 sorted_msg_formats.sort_by(|(_, msg_format1), (_, msg_format2)| {
                     msg_format1.name.cmp(&msg_format2.name)
                 });
@@ -338,8 +357,6 @@ impl ArdupilotLogParserApp {
                         })
                         .map(Element::from),
                 )
-            }
-            None => column![],
         };
 
         let signup = container(
@@ -355,11 +372,17 @@ impl ArdupilotLogParserApp {
 
         let content = row![
             scrollable(center_x(column![
+                button("Plot").on_press(Message::SwitchWidget(Widget::Plot)),
+                button("Table").on_press(Message::SwitchWidget(Widget::Table)),
                 button("Choose file").on_press(Message::OpenFileDialog),
                 column,
             ]))
             .width(Length::Fixed(MSGS_COLUMN_WIDTH_PX)),
-            container(self.plot_widget.view().map(Message::PlotMessage)).width(Length::Fill),
+            container(match self.current_widget {
+                Widget::Plot => self.plot_widget.view().map(Message::PlotMsg),
+                Widget::Table => self.table_widget.view().map(Message::TableMsg),
+            })
+            .width(Length::Fill),
         ];
 
         if self.show_modal {

@@ -9,9 +9,11 @@ use std::{
 const HEAD1: u8 = 0xA3;
 const HEAD2: u8 = 0x95;
 const MSG_ID_FMT: u8 = 0x80;
-const MSG_ID_PARAM: u8 = 0x20;
+// const MSG_ID_PARAM: u8 = 0x20;
 
-#[derive(Debug)]
+// const PARAM_MSG_NAME: &str = "PARM";
+
+#[derive(Debug, Clone)]
 pub enum FormatType {
     /// a
     Int16Len32(Box<Vec<i16>>),
@@ -88,13 +90,27 @@ enum ReadState {
     ParseMessage,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MessageFormat {
     pub length: u8,
     pub id: u8,
     pub name: String,
     pub format: Vec<char>,
     pub labels: Vec<String>,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Parameter {
+    pub name: String,
+    pub value: f32,
+    pub default_value: f32
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct LogInfo {
+    pub formats: HashMap<u8, MessageFormat>,
+    pub msgs: HashMap<u8, Vec<Vec<FormatType>>>,
+    pub params: Vec<Parameter>
 }
 
 // FMT msg
@@ -106,13 +122,7 @@ pub struct MessageFormat {
 
 pub fn read_log(
     log_file_path: &Path,
-) -> Result<
-    (
-        HashMap<u8, Vec<Vec<FormatType>>>,
-        HashMap<u8, MessageFormat>,
-    ),
-    std::io::Error,
-> {
+) -> Result<LogInfo, std::io::Error> {
     let log_file = std::fs::File::open(log_file_path)?;
     // .unwrap_or_else(|_| panic!("Cannot open file {}", log_file_path.to_str().unwrap()));
     let mut reader = std::io::BufReader::new(log_file);
@@ -147,6 +157,7 @@ pub fn read_log(
     let mut head = [0u8; 3];
     let mut msg_formats = HashMap::new();
     let mut messages = HashMap::new();
+    let mut params: Vec<Parameter> = vec![];
 
     let mut msg_id_param: Option<u8> = None;
     let mut msg_id_unit: Option<u8> = None;
@@ -242,6 +253,7 @@ pub fn read_log(
         {
             // let mut msg_body = vec![0u8; e.get().length.into()];
             // reader.read_exact(&mut msg_body).unwrap();
+
             let mut msg_fields = vec![];
             for format_char in &fmt_entry.get().format {
                 let field = match format_char {
@@ -427,7 +439,33 @@ pub fn read_log(
     println!("{:#?}", msg_id_format_unit);
     println!("{:#?}", msg_id_mult);
 
-    // println!("{:#?}", messages.get(&34).unwrap());
+    if let Some(msg_param_id) = msg_id_param {
+        let msg_format = &msg_formats[&msg_param_id];
+        for msg in &messages[&msg_param_id] {
+            let mut param = Parameter::default();
+            for (i, label) in msg_format.labels.iter().enumerate() {
+                match label.as_str() {
+                    "Name" => {
+                        if let Some(FormatType::CharLen16(name)) = msg.get(i) {
+                            param.name = String::from_utf8(name.to_vec()).unwrap_or_default();
+                        }
+                    }
+                    "Value" => {
+                        if let Some(FormatType::Float(value)) = msg.get(i) {
+                            param.value = *value;
+                        }
+                    }
+                    "Default" => {
+                        if let Some(FormatType::Float(default_value)) = msg.get(i) {
+                            param.default_value = *default_value;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            params.push(param);
+        }
+    }
 
-    Ok((messages, msg_formats))
+    Ok(LogInfo { formats: msg_formats, msgs: messages, params})
 }
