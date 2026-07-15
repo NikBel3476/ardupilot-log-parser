@@ -21,7 +21,7 @@ use crate::log_reader::{LogInfo, MessageFormat};
 mod log_reader;
 mod params_table;
 
-const MSGS_COLUMN_WIDTH_PX: f32 = 200.0;
+const MSGS_COLUMN_WIDTH_PX: f32 = 250.0;
 
 #[derive(Debug, Clone)]
 enum Widget {
@@ -272,9 +272,10 @@ impl ArdupilotLogParserApp {
                             // let json = serde_json::to_string(&msgs).unwrap();
                             // let mut json_file = std::fs::File::create("out.json").unwrap();
                             // json_file.write_all(json.as_bytes());
-                            self.table_widget.update(params_table::Message::ShowParamsInfo(
-                                self.log_info.params.clone(),
-                            ));
+                            self.table_widget
+                                .update(params_table::Message::ShowParamsInfo(
+                                    self.log_info.params.clone(),
+                                ));
                         }
                         Err(err_msg) => {
                             eprintln!("{err_msg}");
@@ -341,22 +342,25 @@ impl ArdupilotLogParserApp {
 
     fn view(&'_ self) -> Element<'_, Message> {
         let column = {
-                let mut sorted_msg_formats =
-                    self.log_info.formats.iter().collect::<Vec<(&u8, &MessageFormat)>>();
-                sorted_msg_formats.sort_by(|(_, msg_format1), (_, msg_format2)| {
-                    msg_format1.name.cmp(&msg_format2.name)
-                });
-                column(
-                    sorted_msg_formats
-                        .iter()
-                        .map(|(msg_id, msg_format)| {
-                            button(text(msg_format.name.as_str())).on_press(
-                                /*Message::ShowModal(true),*/
-                                Message::ShowMsgPlot(**msg_id),
-                            )
-                        })
-                        .map(Element::from),
-                )
+            let mut sorted_msg_formats = self
+                .log_info
+                .formats
+                .iter()
+                .collect::<Vec<(&u8, &MessageFormat)>>();
+            sorted_msg_formats.sort_by(|(_, msg_format1), (_, msg_format2)| {
+                msg_format1.name.cmp(&msg_format2.name)
+            });
+            column(
+                sorted_msg_formats
+                    .iter()
+                    .map(|(msg_id, msg_format)| {
+                        button(text(msg_format.name.as_str())).on_press(
+                            /*Message::ShowModal(true),*/
+                            Message::ShowMsgPlot(**msg_id),
+                        )
+                    })
+                    .map(Element::from),
+            ).spacing(5)
         };
 
         let signup = container(
@@ -370,14 +374,16 @@ impl ArdupilotLogParserApp {
         .padding(10)
         .style(container::rounded_box);
 
+        let buttons = row![
+            button("Choose file").on_press(Message::OpenFileDialog),
+            button("Plot").on_press(Message::SwitchWidget(Widget::Plot)),
+            button("Table").on_press(Message::SwitchWidget(Widget::Table)),
+        ]
+        .spacing(5);
+
         let content = row![
-            scrollable(center_x(column![
-                button("Plot").on_press(Message::SwitchWidget(Widget::Plot)),
-                button("Table").on_press(Message::SwitchWidget(Widget::Table)),
-                button("Choose file").on_press(Message::OpenFileDialog),
-                column,
-            ]))
-            .width(Length::Fixed(MSGS_COLUMN_WIDTH_PX)),
+            column![buttons, scrollable(column).width(Length::Fill)]
+                .width(Length::Fixed(MSGS_COLUMN_WIDTH_PX)).padding(5),
             container(match self.current_widget {
                 Widget::Plot => self.plot_widget.view().map(Message::PlotMsg),
                 Widget::Table => self.table_widget.view().map(Message::TableMsg),
