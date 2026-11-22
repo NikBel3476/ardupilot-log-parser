@@ -290,38 +290,43 @@ impl ArdupilotLogParserApp {
                     // println!("{:#?}", msg_format);
                     // println!("{:#?}", msg_values);
 
-                    let time_field_index =
+                    let time_field_index_maybe =
                         msg_format.labels.iter().position(|label| label == "TimeUS");
+
+                    println!("Format: {:?}", msg_format);
 
                     self.plot_widget
                         .series_ids()
                         .iter()
                         .for_each(|shape_id| self.plot_widget.remove_series(shape_id).unwrap());
                     for (field_index, field_name) in msg_format.labels.iter().enumerate() {
-                        let r = rand::random_range(0.0..1.0);
-                        let g = rand::random_range(0.0..1.0);
-                        let b = rand::random_range(0.0..1.0);
+                        if let Some(time_field_index) = time_field_index_maybe
+                            && time_field_index != field_index {
+                                let r = rand::random_range(0.0..1.0);
+                                let g = rand::random_range(0.0..1.0);
+                                let b = rand::random_range(0.0..1.0);
 
-                        let series = Series::line_only(
-                            msg_values
-                                .iter()
-                                .map(|fields| {
-                                    [
-                                        time_field_index.unwrap_or(0) as f64,
-                                        fields[field_index].to_f64().unwrap_or(0.0),
-                                    ]
-                                })
-                                .collect(),
-                            LineStyle::solid().with_pixel_width(4.0),
-                        )
-                        .with_label(format!("{} {}", msg_format.name, field_name))
-                        .with_color(Color::from_rgb(r, g, b));
-                        match self.plot_widget.add_series(series) {
-                            Ok(_) => {}
-                            Err(msg) => {
-                                eprintln!("{:#?}", msg);
+                                let series = Series::line_only(
+                                    msg_values
+                                        .iter()
+                                        .map(|fields| {
+                                            [
+                                                fields[time_field_index].to_f64().unwrap_or(0.0) / 1e6,
+                                                fields[field_index].to_f64().unwrap_or(0.0),
+                                            ]
+                                        })
+                                        .collect(),
+                                    LineStyle::solid().with_pixel_width(4.0),
+                                )
+                                .with_label(format!("{} {}", msg_format.name, field_name))
+                                .with_color(Color::from_rgb(r, g, b));
+                                match self.plot_widget.add_series(series) {
+                                    Ok(_) => {}
+                                    Err(msg) => {
+                                        eprintln!("Series error: {:#?}", msg);
+                                    }
+                                }
                             }
-                        }
                     }
                 }
             }
