@@ -293,7 +293,7 @@ impl ArdupilotLogParserApp {
                     let time_field_index_maybe =
                         msg_format.labels.iter().position(|label| label == "TimeUS");
 
-                    println!("Format: {:?}", msg_format);
+                    // println!("Format: {:?}", msg_format);
 
                     self.plot_widget
                         .series_ids()

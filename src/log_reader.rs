@@ -263,7 +263,7 @@ pub fn read_log(
                             break;
                         }
                         unsafe {
-                            FormatType::Int16Len32(Box::from((buf.align_to::<i16>().1).to_vec()))
+                            FormatType::Int16Len32(Box::from((buf.align_to::<i16>().1).iter().map(|num| { num.to_be() }).collect::<Vec<i16>>()))
                         }
                     }
                     'b' => {
@@ -271,56 +271,56 @@ pub fn read_log(
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Int8(i8::from_be_bytes(buf))
+                        FormatType::Int8(i8::from_le_bytes(buf))
                     }
                     'B' => {
                         let mut buf = [0u8; 1];
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Uint8(u8::from_be_bytes(buf))
+                        FormatType::Uint8(u8::from_le_bytes(buf))
                     }
                     'h' => {
                         let mut buf = [0u8; 2];
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Int16(i16::from_be_bytes(buf))
+                        FormatType::Int16(i16::from_le_bytes(buf))
                     }
                     'H' => {
                         let mut buf = [0u8; 2];
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Uint16(u16::from_be_bytes(buf))
+                        FormatType::Uint16(u16::from_le_bytes(buf))
                     }
                     'i' => {
                         let mut buf = [0u8; 4];
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Int32(i32::from_be_bytes(buf))
+                        FormatType::Int32(i32::from_le_bytes(buf))
                     }
                     'I' => {
                         let mut buf = [0u8; 4];
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Uint32(u32::from_be_bytes(buf))
+                        FormatType::Uint32(u32::from_le_bytes(buf))
                     }
                     'f' => {
                         let mut buf = [0u8; 4];
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Float(f32::from_be_bytes(buf))
+                        FormatType::Float(f32::from_le_bytes(buf))
                     }
                     'd' => {
                         let mut buf = [0u8; 8];
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Double(f64::from_be_bytes(buf))
+                        FormatType::Double(f64::from_le_bytes(buf))
                     }
                     'n' => {
                         let mut buf = [0u8; 4];
@@ -348,56 +348,56 @@ pub fn read_log(
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Int16Mul100(i16::from_be_bytes(buf))
+                        FormatType::Int16Mul100(i16::from_le_bytes(buf))
                     }
                     'C' => {
                         let mut buf = [0u8; 2];
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Uint16Mul100(u16::from_be_bytes(buf))
+                        FormatType::Uint16Mul100(u16::from_le_bytes(buf))
                     }
                     'e' => {
                         let mut buf = [0u8; 4];
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Int32Mul100(i32::from_be_bytes(buf))
+                        FormatType::Int32Mul100(i32::from_le_bytes(buf))
                     }
                     'E' => {
                         let mut buf = [0u8; 4];
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Uint32Mul100(u32::from_be_bytes(buf))
+                        FormatType::Uint32Mul100(u32::from_le_bytes(buf))
                     }
                     'L' => {
                         let mut buf = [0u8; 4];
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Int32LatLon(i32::from_be_bytes(buf))
+                        FormatType::Int32LatLon(i32::from_le_bytes(buf))
                     }
                     'M' => {
                         let mut buf = [0u8; 1];
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Uint8FlightMode(u8::from_be_bytes(buf))
+                        FormatType::Uint8FlightMode(u8::from_le_bytes(buf))
                     }
                     'q' => {
                         let mut buf = [0u8; 8];
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Int64(i64::from_be_bytes(buf))
+                        FormatType::Int64(i64::from_le_bytes(buf))
                     }
                     'Q' => {
                         let mut buf = [0u8; 8];
                         if reader.read_exact(&mut buf).is_err() {
                             break;
                         }
-                        FormatType::Uint64(u64::from_be_bytes(buf))
+                        FormatType::Uint64(u64::from_le_bytes(buf))
                     }
                     char => {
                         println!("{:#?}", fmt_entry);
